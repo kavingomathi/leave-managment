@@ -1,0 +1,141 @@
+db.js: const mongoose = require('mongoose'); const connectDB = async () => { 
+    try { 
+        await mongoose.connect('mongodb://localhost:27017/leave-management', { 
+        }); 
+        console.log("MongoDB connected successfully"); 
+    } catch (error) {         console.error("MongoDB connection failed:", error);         process.exit(1); 
+    }}; 
+module.exports = connectDB; user.js: const mongoose = require('mongoose'); const UserSchema = new mongoose.Schema({ 
+    username: {         type: String,         required: true     }, 
+    email: {         type: String,         required: true,         unique: true 
+    }, 
+    rollNumber: {         type: String,         required: true 
+    }, 
+    casualLeave: {         type: Number,         default: 10 // default leave balance 
+    }, 
+    medicalLeave: {         type: Number,         default: 10 // default leave balance 
+    }}); 
+const User = mongoose.model('User', UserSchema); module.exports = User; app.js: 
+// app.js let userId; // Store user ID globally // Function to handle user registration async function registerUser(event) {     event.preventDefault();     const username = document.getElementById('username').value;     const email = document.getElementById('reg-email').value;     const rollNumber = document.getElementById('roll-number').value;     const casualLeave = document.getElementById('casual-leave').value;     const medicalLeave = document.getElementById('medical-leave').value; 
+    try { 
+        const response = await fetch('/api/register', {             method: 'POST',             headers: { 
+                'Content-Type': 'application/json', 
+            }, 
+            body: JSON.stringify({                 username,                 email, 
+            rollNumber,             casualLeave: parseInt(casualLeave),             medicalLeave: parseInt(medicalLeave), 
+        }), }); 
+    const data = await response.json();     if (response.ok) {         document.getElementById('registration-response').innerText = data.message;             document.getElementById('registration-form').reset(); // Reset the form 
+            // Hide the registration section and show the login section             document.getElementById('registration-section').style.display = 'none';             document.getElementById('login-section').style.display = 'block'; 
+        } else { 
+            document.getElementById('registration-response').innerText = data.message || 'Error registering user'; 
+        } 
+    } catch (error) {         console.error('Error registering user:', error);         document.getElementById('registration-response').innerText = 'Server error'; 
+    }} 
+// Function to handle user login async function loginUser(event) {     event.preventDefault();     const email = document.getElementById('email').value; 
+    try { 
+        const response = await fetch('/api/login', {             method: 'POST',             headers: { 
+                'Content-Type': 'application/json', 
+            }, 
+            body: JSON.stringify({ email }), 
+        }); 
+        const data = await response.json();         if (response.ok) {             userId = data.userId; // Store user ID for future requests             document.getElementById('username-display').innerText = data.username;             document.getElementById('roll-number-display').innerText = data.rollNumber;             document.getElementById('casual-leave-display').innerText = data.casualLeave;             document.getElementById('medical-leave-display').innerText = data.medicalLeave;             document.getElementById('balance-section').style.display = 'block';             document.getElementById('apply-leave-section').style.display = 'block';             document.getElementById('login-section').style.display = 'none';             document.getElementById('registration-section').style.display = 'none'; // Hide registration if it was visible             document.getElementById('logout-button').style.display = 'block'; // Show logout button 
+    } else { 
+        document.getElementById('response-message').innerText = data.message || 'Error logging in'; 
+    } 
+} catch (error) {     console.error('Error logging in:', error);     document.getElementById('response-message').innerText = 'Server error'; 
+} 
+} 
+// Function to handle user logout function logoutUser() {     // Hide user-related sections     document.getElementById('balance-section').style.display = 'none';     document.getElementById('apply-leave-section').style.display = 'none';     document.getElementById('logout-button').style.display = 'none'; // Hide logout button     document.getElementById('login-section').style.display = 'block'; // Show login section     document.getElementById('registration-section').style.display = 'none'; // Hide registration section     document.getElementById('response-message').innerText = ''; // Clear response messages 
+    // Reset user info     document.getElementById('username-display').innerText = '';     document.getElementById('roll-number-display').innerText = '';     document.getElementById('casual-leave-display').innerText = 'Loading...';     document.getElementById('medical-leave-display').innerText = 'Loading...'; 
+} 
+// Function to refresh leave balance async function refreshLeaveBalance() { 
+    try { 
+        const response = await fetch(`/api/leave-balance/${userId}`);         const data = await response.json();         if (response.ok) {             document.getElementById('casual-leave-display').innerText = data.casualLeave;             document.getElementById('medical-leave-display').innerText = data.medicalLeave; 
+        } else { 
+            document.getElementById('response-message').innerText = data.message || 'Error fetching balance'; 
+        } 
+    } catch (error) {         console.error('Error refreshing balance:', error);         document.getElementById('response-message').innerText = 'Server error'; 
+    } 
+} 
+// Function to apply for leave async function applyLeave(event) {     event.preventDefault(); 
+const type = document.getElementById('leave-type').value; const days = parseInt(document.getElementById('leave-days').value); 
+try {     const response = await fetch(`/api/apply-leave/${userId}`, {         method: 'POST',         headers: { 
+            'Content-Type': 'application/json', 
+            }, 
+            body: JSON.stringify({ type, days }), 
+        }); 
+        const data = await response.json();         if (response.ok) {             document.getElementById('casual-leave-display').innerText = data.casualLeave;             document.getElementById('medical-leave-display').innerText = data.medicalLeave;             document.getElementById('response-message').innerText = data.message;             document.getElementById('leave-form').reset(); // Reset leave form 
+        } else { 
+            document.getElementById('response-message').innerText = data.message || 'Error applying for leave'; 
+        } 
+    } catch (error) {         console.error('Error applying for leave:', error);         document.getElementById('response-message').innerText = 'Server error'; 
+    } 
+} 
+// Event listeners document.getElementById('registration-form').addEventListener('submit', registerUser); document.getElementById('login-form').addEventListener('submit', loginUser); document.getElementById('refresh-balance').addEventListener('click', refreshLeaveBalance); document.getElementById('logout-button').addEventListener('click', logoutUser); // Logout event listener document.getElementById('leave-form').addEventListener('submit', applyLeave); // Apply leave event listener 
+// Show Login Section document.getElementById('show-login').addEventListener('click', function () {     document.getElementById('login-section').style.display = 'block';     document.getElementById('registration-section').style.display = 'none'; 
+}); 
+// Show Registration Section document.getElementById('show-registration').addEventListener('click', function () {     document.getElementById('registration-section').style.display = 'block';     document.getElementById('login-section').style.display = 'none'; 
+}); 
+ 
+leaveroutes.js: 
+// routes/leaveRoutes.js const express = require('express'); const router = express.Router(); const User = require('../models/User'); // Route to handle user registration router.post('/register', async (req, res) => {     const { username, email, rollNumber, casualLeave = 0, medicalLeave = 0 } = req.body; 
+    try { 
+        // Check if the user already exists         const existingUser = await User.findOne({ email });         if (existingUser) {             return res.status(400).json({ message: 'User already exists with this email' }); 
+        } 
+        // Validate email format         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;         if (!emailRegex.test(email)) {             return res.status(400).json({ message: 'Invalid email format' }); 
+        } 
+        // Create a new user         const newUser = new User({             username,             email,             rollNumber,             casualLeave,             medicalLeave 
+        }); 
+        await newUser.save();         res.status(201).json({             message: 'User created successfully',             userId: newUser._id,             username: newUser.username,             rollNumber: newUser.rollNumber,             casualLeave: newUser.casualLeave,             medicalLeave: newUser.medicalLeave 
+        }); 
+    } catch (error) {         console.error('Error creating user:', error);         res.status(500).json({ message: 'Server error' }); 
+    } 
+}); 
+// Route to handle user login 
+router.post('/login', async (req, res) => {     const { email } = req.body; 
+    try { 
+        const user = await User.findOne({ email }); 
+        if (!user) { 
+            return res.status(404).json({ message: 'User not found' }); 
+        } 
+        // Return user details and leave balance 
+        res.json({             message: 'Login successful',             userId: user._id,             username: user.username,             rollNumber: user.rollNumber,             casualLeave: user.casualLeave,             medicalLeave: user.medicalLeave 
+        }); 
+    } catch (error) {         console.error('Error during login:', error);         res.status(500).json({ message: 'Server error', error: error.message }); 
+    } 
+}); 
+// Route to get leave balance by user ID router.get('/leave-balance/:id', async (req, res) => { 
+    try { 
+        const user = await User.findById(req.params.id); 
+        if (!user) { 
+            return res.status(404).json({ message: 'User not found' }); 
+        } 
+        res.json({             casualLeave: user.casualLeave,             medicalLeave: user.medicalLeave 
+        }); 
+    } catch (error) {         console.error('Error fetching leave balance:', error);         res.status(500).json({ message: 'Server error' }); 
+    } 
+}); 
+// Route to apply for leave (ADD leave days instead of reducing them) router.post('/apply-leave/:id', async (req, res) => {     const { type, days } = req.body; 
+    try { 
+        const user = await User.findById(req.params.id); 
+        if (!user) { 
+            return res.status(404).json({ message: 'User not found' }); 
+        } 
+        // Ensure days is a number         const leaveDays = parseInt(days);         if (isNaN(leaveDays) || leaveDays <= 0) {             return res.status(400).json({ message: 'Invalid number of days' }); 
+        } 
+        // Add leave days instead of reducing them         if (type === 'casual') {             user.casualLeave += leaveDays;         } else if (type === 'medical') {             user.medicalLeave += leaveDays; 
+        } else { 
+            return res.status(400).json({ message: 'Invalid leave type' }); 
+        } 
+        await user.save();         res.json({             message: 'Leave added successfully',             casualLeave: user.casualLeave,             medicalLeave: user.medicalLeave 
+        }); 
+    } catch (error) {         console.error('Error adding leave:', error);         res.status(500).json({ message: 'Server error' }); 
+    }}); 
+module.exports = router; 
+ 
+app.js: 
+// app.js const express = require('express'); const bodyParser = require('body-parser'); const path = require('path'); // Add this to use 'path' module const connectDB = require('./config/db'); const leaveRoutes = require('./routes/leaveRoutes'); const app = express(); // Connect to MongoDB connectDB(); // Middleware app.use(bodyParser.json()); 
+// Serve static files from the "public" directory app.use(express.static(path.join(__dirname, 'public'))); 
+// API Routes app.use('/api', leaveRoutes); // Start the server const PORT = process.env.PORT || 5000; app.listen(PORT, () => {     console.log(`Server running on port ${PORT}`); 
+}); 
+ 
